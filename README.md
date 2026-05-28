@@ -4,11 +4,23 @@
 
 ---
 
+## 🔄 Pipeline
+
+```
+Step 1  opentix_scraper_v2.py          → opentix_all.csv
+Step 2  opentix_detail_scraper_v3.py   → opentix_detail.csv
+Step 3  feature_engineering.py         → features_event.csv, features_program.csv
+Step 4  model_training.py              → features_clustered.csv, model_summary.txt
+Step 5  opentix_predictor.html         → Open in browser
+```
+---
+
 ## 📌 Project Overview
 
 Taiwan's performing arts market hit a record-high box office of NT$1.84 billion in 2024, with over 3,150 productions and 2.1 million tickets sold (OPENTIX Annual Report, 2024). Yet many small and mid-size productions struggle with pricing strategy — setting prices too high risks low attendance, while setting them too low leaves revenue on the table.
 
 This project builds a **ticket price advisory and sellout rate prediction system** based on real market data scraped from OPENTIX (`opentix.life`), Taiwan's leading performing arts ticketing platform.
+
 
 **Target user:** Ticketing administrators planning a new production who want data-backed guidance on pricing zones and sellout potential.
 
