@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPENTIX 售票預測系統</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap');
+
+:root {
+  --ink: #1a1612;
+  --paper: #f5f0e8;
+  --cream: #eee8d8;
+  --accent: #c84b2f;
+  --green: #2a7a5a;
+  --blue: #2f5fc8;
+  --gold: #b8960c;
+  --mid: #7a6f60;
+  --border: #d4cdbf;
+  --card: #faf7f2;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Serif TC', serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+header {
+  background: var(--ink); color: var(--paper);
+  padding: 2rem 2rem 1.5rem; position: relative; overflow: hidden;
+}
+header::after {
+  content: '售'; position: absolute; right: -1.5rem; top: -2rem;
+  font-size: 12rem; font-weight: 700; opacity: 0.04; line-height: 1;
+}
+.htag { font-family: 'DM Mono'; font-size: 11px; letter-spacing: 2px; color: var(--accent); margin-bottom: 0.5rem; }
+header h1 { font-family: 'Syne'; font-size: clamp(1.4rem,3.5vw,2.2rem); font-weight: 800; }
+header p { font-size: 0.82rem; color: #908070; margin-top: 0.4rem; }
+
+.main { max-width: 1120px; margin: 0 auto; padding: 1.75rem 1.5rem; display: grid; grid-template-columns: 380px 1fr; gap: 1.75rem; align-items: start; }
+@media(max-width:800px){ .main{grid-template-columns:1fr;} }
+
+/* ── Panel ── */
+.panel { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 1.5rem; position: sticky; top: 1rem; }
+.panel-title { font-family: 'DM Mono'; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--mid); margin-bottom: 1.25rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
+
+.field { margin-bottom: 1rem; }
+.field label { display: block; font-family: 'DM Mono'; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--mid); margin-bottom: 0.35rem; }
+.field select, .field input[type=text], .field input[type=number], .field input[type=date], .field input[type=time] {
+  width: 100%; padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--paper); font-family: 'Noto Serif TC'; font-size: 0.88rem; color: var(--ink);
+  appearance: none; transition: border-color 0.2s;
+}
+.field select:focus, .field input:focus { outline: none; border-color: var(--accent); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+
+/* 票區管理 */
+.zone-editor { border: 1px solid var(--border); border-radius: 3px; background: var(--paper); padding: 0.75rem; }
+.zone-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+.zone-row input[type=text] { flex: 2; font-size: 0.82rem; padding: 0.4rem 0.6rem; }
+.zone-row input[type=number] { flex: 1; font-size: 0.82rem; padding: 0.4rem 0.6rem; }
+.zone-del { background: none; border: none; color: var(--mid); cursor: pointer; font-size: 1rem; padding: 0 4px; }
+.zone-del:hover { color: var(--accent); }
+.btn-add-zone { font-family: 'DM Mono'; font-size: 10px; letter-spacing: 1px; padding: 0.4rem 0.8rem; background: none; border: 1px dashed var(--border); border-radius: 3px; cursor: pointer; color: var(--mid); width: 100%; margin-top: 0.25rem; transition: all 0.2s; }
+.btn-add-zone:hover { border-color: var(--accent); color: var(--accent); }
+
+.toggles { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+.toggle-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer; }
+.toggle-item input { accent-color: var(--accent); }
+
+.btn-predict { width: 100%; padding: 0.85rem; background: var(--accent); color: white; border: none; border-radius: 3px; font-family: 'Syne'; font-size: 0.9rem; font-weight: 700; cursor: pointer; margin-top: 0.75rem; transition: background 0.2s, transform 0.1s; }
+.btn-predict:hover { background: #a83a22; }
+.btn-predict:active { transform: scale(0.98); }
+.btn-predict:disabled { background: var(--border); cursor: not-allowed; }
+
+/* ── Results ── */
+.results { min-height: 300px; }
+
+/* Gauge */
+.gauge-wrap { text-align: center; padding: 1.5rem 0 0.5rem; }
+.gauge-svg { width: 200px; height: 110px; }
+.gauge-num { font-family: 'Syne'; font-size: 2.8rem; font-weight: 800; }
+.gauge-label { font-family: 'DM Mono'; font-size: 11px; letter-spacing: 1px; color: var(--mid); margin-top: 2px; }
+.gauge-risk { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 0.78rem; font-family: 'DM Mono'; margin-top: 8px; }
+.risk-low  { background: #fdf3d0; color: var(--gold); }
+.risk-mid  { background: #d6f0e8; color: var(--green); }
+.risk-high { background: #fde8e4; color: var(--accent); }
+
+/* Factor bars */
+.factors { margin: 1rem 0; }
+.factor-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.6rem; }
+.factor-name { font-family: 'DM Mono'; font-size: 10px; letter-spacing: 0.5px; color: var(--mid); width: 90px; text-align: right; flex-shrink: 0; }
+.factor-bar-wrap { flex: 1; height: 8px; background: var(--cream); border-radius: 4px; position: relative; }
+.factor-bar { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+.factor-val { font-family: 'DM Mono'; font-size: 10px; width: 40px; flex-shrink: 0; }
+.factor-pos { color: var(--green); }
+.factor-neg { color: var(--accent); }
+
+/* Section */
+.section { margin-bottom: 1.5rem; }
+.section-title { font-family: 'DM Mono'; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--mid); margin-bottom: 0.75rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+
+/* AI suggestion */
+.ai-box { background: var(--ink); color: var(--paper); border-radius: 4px; padding: 1.25rem 1.5rem; font-size: 0.88rem; line-height: 1.8; }
+.ai-box h4 { font-family: 'Syne'; font-size: 0.9rem; margin-bottom: 0.75rem; color: #e8dfd0; }
+.ai-streaming { color: #c0b8a8; }
+.ai-cursor { display: inline-block; width: 2px; height: 1em; background: var(--accent); animation: blink 0.8s infinite; vertical-align: text-bottom; margin-left: 2px; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+.ai-box ul { list-style: none; padding: 0; }
+.ai-box li { padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; gap: 0.5rem; align-items: flex-start; }
+.ai-box li:last-child { border: none; }
+.ai-tag { font-family: 'DM Mono'; font-size: 9px; letter-spacing: 1px; padding: 2px 6px; border-radius: 2px; flex-shrink: 0; margin-top: 3px; }
+.tag-warn { background: rgba(200,75,47,0.3); color: #f09070; }
+.tag-good { background: rgba(42,122,90,0.3); color: #70d0a0; }
+.tag-tip  { background: rgba(184,150,12,0.3); color: #e0c040; }
+
+.note { font-size: 0.74rem; color: var(--mid); line-height: 1.6; padding: 0.75rem; background: var(--cream); border-radius: 3px; margin-top: 0.75rem; }
+
+.fade-in { animation: fadeIn 0.4s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+
+.loading-dots::after { content: ''; animation: dots 1.2s infinite; }
+@keyframes dots { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="htag">OPENTIX 市場資料 · 319 演出 · 1,209 場次</div>
+  <h1>舞台劇售票率預測系統</h1>
+  <p>輸入你的票區設計與演出條件，預測市場售出率並取得 AI 修改建議</p>
+</header>
+
+<div class="main">
+  <!-- ── 左側輸入 ── -->
+  <div class="panel">
+    <div class="panel-title">演出資料輸入</div>
+
+    <div class="field">
+      <label>演出類別</label>
+      <select id="f-category">
+        <option value="戲劇">戲劇</option>
+        <option value="舞蹈">舞蹈</option>
+        <option value="親子">親子</option>
+      </select>
+    </div>
+
+    <div class="field row2">
+      <div>
+        <label>場館等級</label>
+        <select id="f-tier">
+          <option value="國家級">國家級</option>
+          <option value="市立級">市立級</option>
+          <option value="民間場館" selected>民間場館</option>
+        </select>
+      </div>
+      <div>
+        <label>演出城市</label>
+        <select id="f-city">
+          <option>臺北市</option><option>新北市</option><option>臺中市</option>
+          <option>高雄市</option><option>臺南市</option><option>桃園市</option>
+          <option>新竹市</option><option>其他</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field row2">
+      <div>
+        <label>演出日期</label>
+        <input type="date" id="f-date">
+      </div>
+      <div>
+        <label>開演時間</label>
+        <input type="time" id="f-time" value="19:30">
+      </div>
+    </div>
+
+    <div class="field row2">
+      <div>
+        <label>總場次數</label>
+        <input type="number" id="f-events" value="4" min="1" max="50">
+      </div>
+      <div>
+        <label>開賣至演出（天）</label>
+        <input type="number" id="f-advance" value="60" min="1" max="365">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>票區設計（名稱 + 票價）</label>
+      <div class="zone-editor">
+        <div id="zone-rows">
+          <div class="zone-row">
+            <input type="text" placeholder="票區名稱（如 A區）" value="A區">
+            <input type="number" placeholder="票價" value="1800" min="0">
+            <button class="zone-del" onclick="delZone(this)">✕</button>
+          </div>
+          <div class="zone-row">
+            <input type="text" placeholder="票區名稱" value="B區">
+            <input type="number" placeholder="票價" value="1200" min="0">
+            <button class="zone-del" onclick="delZone(this)">✕</button>
+          </div>
+          <div class="zone-row">
+            <input type="text" placeholder="票區名稱" value="C區">
+            <input type="number" placeholder="票價" value="800" min="0">
+            <button class="zone-del" onclick="delZone(this)">✕</button>
+          </div>
+        </div>
+        <button class="btn-add-zone" onclick="addZone()">＋ 新增票區</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>優惠方案</label>
+      <div class="toggles">
+        <label class="toggle-item"><input type="checkbox" id="f-student" checked> 青年/學生優惠</label>
+        <label class="toggle-item"><input type="checkbox" id="f-group"> 團體優惠</label>
+        <label class="toggle-item"><input type="checkbox" id="f-touring"> 跨城市巡演</label>
+      </div>
+    </div>
+
+    <button class="btn-predict" id="btn-predict" onclick="predict()">▶ 預測售出率並取得建議</button>
+  </div>
+
+  <!-- ── 右側結果 ── -->
+  <div class="results" id="results">
+    <div style="text-align:center;padding:4rem 2rem;color:var(--mid)">
+      <div style="font-size:3rem;margin-bottom:1rem">🎭</div>
+      <div style="font-size:0.9rem">輸入你的票區設計後<br>系統將預測售出率並提供 AI 修改建議</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// 模型資料（由 Python 訓練產出）
+// ══════════════════════════════════════════════
+const BASELINE = [
+  {category:'戲劇',show_scale:'中型',mean:0.243,std:0.331},
+  {category:'戲劇',show_scale:'大型',mean:0.240,std:0.282},
+  {category:'戲劇',show_scale:'小型',mean:0.150,std:0.349},
+  {category:'舞蹈',show_scale:'大型',mean:0.312,std:0.377},
+  {category:'舞蹈',show_scale:'中型',mean:0.079,std:0.175},
+  {category:'舞蹈',show_scale:'小型',mean:0.087,std:0.277},
+  {category:'親子',show_scale:'小型',mean:0.121,std:0.320},
+  {category:'親子',show_scale:'中型',mean:0.075,std:0.226},
+  {category:'親子',show_scale:'大型',mean:0.028,std:0.080},
+];
+
+const MARKET_MEDIAN = {
+  '戲劇': {'大型':1008,'中型':741,'小型':530},
+  '舞蹈': {'大型':822,'中型':476,'小型':531},
+  '親子': {'大型':716,'中型':490,'小型':426},
+};
+
+// ── 票區操作 ──────────────────────────────────
+function addZone() {
+  const row = document.createElement('div');
+  row.className = 'zone-row';
+  row.innerHTML = `<input type="text" placeholder="票區名稱"><input type="number" placeholder="票價" min="0"><button class="zone-del" onclick="delZone(this)">✕</button>`;
+  document.getElementById('zone-rows').appendChild(row);
+}
+function delZone(btn) {
+  const rows = document.querySelectorAll('.zone-row');
+  if (rows.length > 1) btn.parentElement.remove();
+}
+function getZones() {
+  return Array.from(document.querySelectorAll('.zone-row')).map(row => {
+    const inputs = row.querySelectorAll('input');
+    return { name: inputs[0].value || '票區', price: parseFloat(inputs[1].value) || 0 };
+  }).filter(z => z.price > 0);
+}
+
+// ── 規模判斷 ──────────────────────────────────
+function getScale(zoneCount, priceMax) {
+  if (zoneCount >= 6 || priceMax >= 3000) return '大型';
+  if (zoneCount >= 3 || priceMax >= 1200) return '中型';
+  return '小型';
+}
+
+// ── 核心預測函式 ──────────────────────────────
+function computePrediction(input) {
+  const zones  = input.zones;
+  const prices = zones.map(z => z.price).filter(p => p > 0);
+  if (!prices.length) return null;
+
+  const priceMax  = Math.max(...prices);
+  const priceMin  = Math.min(...prices);
+  const priceMean = prices.reduce((a,b) => a+b, 0) / prices.length;
+  const zoneCount = zones.length;
+  const scale     = getScale(zoneCount, priceMax);
+  const market    = MARKET_MEDIAN[input.category]?.[scale];
+
+  // 基準售出率（同類 × 規模）
+  const base = BASELINE.find(b => b.category===input.category && b.show_scale===scale);
+  let rate = base ? base.mean : 0.15;
+
+  // 特徵調整（基於相關性分析）
+  const factors = [];
+
+  // 票價 vs 市場基準
+  if (market) {
+    const ratio = priceMean / market;
+    if (ratio > 1.4) {
+      const adj = -0.08;
+      rate += adj;
+      factors.push({ name:'定價過高', effect: adj, detail:`均價比市場高 ${Math.round((ratio-1)*100)}%` });
+    } else if (ratio < 0.7) {
+      const adj = -0.04;
+      rate += adj;
+      factors.push({ name:'定價偏低', effect: adj, detail:`低價可能使觀眾低估品質` });
+    } else {
+      const adj = 0.03;
+      rate += adj;
+      factors.push({ name:'票價符合市場', effect: adj, detail:`均價在市場合理範圍` });
+    }
+  }
+
+  // 票區結構
+  if (zoneCount >= 4) {
+    const adj = 0.05;
+    rate += adj;
+    factors.push({ name:'多票區分層', effect: adj, detail:`${zoneCount} 個票區，擴大客群覆蓋` });
+  } else if (zoneCount === 1) {
+    const adj = -0.06;
+    rate += adj;
+    factors.push({ name:'單一票價', effect: adj, detail:`缺乏分層，可能流失部分客群` });
+  }
+
+  // 有無高價票（代表大製作信號）
+  if (priceMax >= 2000) {
+    const adj = 0.04;
+    rate += adj;
+    factors.push({ name:'高價票溢價', effect: adj, detail:`最高票 ${priceMax.toLocaleString()} 元，有品牌加成` });
+  }
+
+  // 最低價是否有親民票
+  if (priceMin <= 500) {
+    const adj = -0.03;
+    rate += adj;
+    factors.push({ name:'低門檻入場', effect: adj, detail:`最低 ${priceMin} 元，但需注意品牌定位` });
+  }
+
+  // 開演時間
+  const [h] = (input.time || '19:30').split(':').map(Number);
+  if (h >= 14 && h <= 16) {
+    const adj = 0.02;
+    rate += adj;
+    factors.push({ name:'日場加成', effect: adj, detail:`下午場對親子及長者友善` });
+  } else if (h >= 19 && h <= 20) {
+    const adj = 0.03;
+    rate += adj;
+    factors.push({ name:'黃金時段', effect: adj, detail:`晚場 7-8 點是主流觀眾首選` });
+  }
+
+  // 星期
+  if (input.date) {
+    const day = new Date(input.date).getDay(); // 0=日
+    if (day === 0 || day === 6) {
+      // 週末實際效果偏負（資料顯示 -0.023 相關）
+    } else if (day === 4) { // 週四
+      const adj = 0.02;
+      rate += adj;
+      factors.push({ name:'週四場次', effect: adj, detail:`資料顯示週四售出率略高` });
+    }
+  }
+
+  // 提前開賣天數（最重要特徵）
+  const advance = parseInt(input.advance) || 60;
+  if (advance >= 90) {
+    const adj = 0.06;
+    rate += adj;
+    factors.push({ name:'提前開賣', effect: adj, detail:`提前 ${advance} 天開賣，爭取早鳥購票` });
+  } else if (advance < 30) {
+    const adj = -0.07;
+    rate += adj;
+    factors.push({ name:'開賣時間短', effect: adj, detail:`距演出僅 ${advance} 天，宣傳時間不足` });
+  }
+
+  // 優惠方案
+  const discountCount = [input.student, input.group].filter(Boolean).length;
+  if (discountCount >= 1) {
+    const adj = 0.02 * discountCount;
+    rate += adj;
+    factors.push({ name:'優惠方案', effect: adj, detail:`${discountCount} 種優惠拓展購票族群` });
+  }
+
+  // 場館加成
+  if (input.tier === '國家級') {
+    const adj = 0.05;
+    rate += adj;
+    factors.push({ name:'國家級場館', effect: adj, detail:`場館品牌帶動購票信心` });
+  }
+
+  rate = Math.max(0.02, Math.min(0.95, rate));
+
+  return { rate, scale, priceMin, priceMax, priceMean, zoneCount, market, factors, advance };
+}
+
+// ── 儀表板繪製 ────────────────────────────────
+function drawGauge(rate) {
+  const pct = Math.round(rate * 100);
+  const color = pct >= 50 ? '#2a7a5a' : pct >= 25 ? '#b8960c' : '#c84b2f';
+  const angle = -180 + rate * 180; // -180 to 0 degrees
+  const r = 80, cx = 100, cy = 100;
+  const startRad = Math.PI;
+  const endRad = Math.PI - rate * Math.PI;
+  const x1 = cx + r * Math.cos(startRad), y1 = cy + r * Math.sin(startRad);
+  const x2 = cx + r * Math.cos(endRad),   y2 = cy + r * Math.sin(endRad);
+  const large = rate > 0.5 ? 1 : 0;
+  const riskLabel = pct >= 50 ? '高售出率' : pct >= 25 ? '中等售出率' : '低售出率';
+  const riskClass = pct >= 50 ? 'risk-high' : pct >= 25 ? 'risk-mid' : 'risk-low';
+  return `
+    <div class="gauge-wrap">
+      <svg class="gauge-svg" viewBox="0 0 200 110">
+        <path d="M20,100 A80,80 0 0,1 180,100" fill="none" stroke="#e8e0d4" stroke-width="14" stroke-linecap="round"/>
+        ${rate > 0.01 ? `<path d="M${x1},${y1} A80,80 0 ${large},0 ${x2},${y2}" fill="none" stroke="${color}" stroke-width="14" stroke-linecap="round"/>` : ''}
+        <text x="100" y="95" text-anchor="middle" font-family="Syne,sans-serif" font-size="28" font-weight="800" fill="${color}">${pct}%</text>
+      </svg>
+      <div class="gauge-label">預測售出率</div>
+      <span class="gauge-risk ${riskClass}">${riskLabel}</span>
+    </div>`;
+}
+
+function drawFactors(factors) {
+  const maxEffect = Math.max(...factors.map(f => Math.abs(f.effect)), 0.01);
+  return factors.map(f => {
+    const pct = Math.round((Math.abs(f.effect) / maxEffect) * 100);
+    const isPos = f.effect > 0;
+    const color = isPos ? '#2a7a5a' : '#c84b2f';
+    return `<div class="factor-row">
+      <div class="factor-name">${f.name}</div>
+      <div class="factor-bar-wrap">
+        <div class="factor-bar" style="width:${pct}%;background:${color};${!isPos ? 'margin-left:auto' : ''}"></div>
+      </div>
+      <div class="factor-val ${isPos ? 'factor-pos' : 'factor-neg'}">${isPos?'+':''}${Math.round(f.effect*100)}%</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Claude API 建議 ───────────────────────────
+async function getAISuggestion(input, prediction) {
+  const box = document.getElementById('ai-content');
+  box.innerHTML = `<div class="ai-streaming">分析中<span class="loading-dots"></span></div>`;
+
+  const prompt = `你是一位台灣表演藝術票務顧問，請根據以下演出資料給出具體的票價與售票建議。
+
+演出資訊：
+- 類別：${input.category}（${prediction.scale}型演出）
+- 城市：${input.city}　場館等級：${input.tier}
+- 演出日期：${input.date}　開演時間：${input.time}
+- 總場次：${input.events} 場　提前開賣：${input.advance} 天前
+- 有青年優惠：${input.student?'是':'否'}　有團體優惠：${input.group?'是':'否'}
+
+目前票區設計：
+${input.zones.map(z => `- ${z.name}：${z.price.toLocaleString()} 元`).join('\n')}
+
+預測售出率：${Math.round(prediction.rate * 100)}%
+市場基準均價：${prediction.market ? prediction.market.toLocaleString() + ' 元' : '未知'}
+主要影響因素：${prediction.factors.map(f => `${f.name}（${f.detail}）`).join('、')}
+
+請給出 3～4 條具體建議，格式為：
+每條建議以「[警告]」、[建議]或「[優點]」開頭，說明問題或優點，然後給出具體數字建議。繁體中文回答，每條不超過 60 字。`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 600,
+        stream: true,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let text = '';
+    box.innerHTML = `<div class="ai-streaming" id="ai-stream"></div><span class="ai-cursor"></span>`;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      for (const line of chunk.split('\n')) {
+        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+          try {
+            const d = JSON.parse(line.slice(6));
+            if (d.type === 'content_block_delta' && d.delta?.text) {
+              text += d.delta.text;
+              document.getElementById('ai-stream').textContent = text;
+            }
+          } catch {}
+        }
+      }
+    }
+
+    // 渲染成帶 tag 的清單
+    const items = text.split('\n').filter(l => l.trim());
+    box.innerHTML = `<ul>${items.map(item => {
+      let tag = '', cls = '';
+      if (item.includes('[警告]')) { tag = '警告'; cls = 'tag-warn'; item = item.replace('[警告]','').trim(); }
+      else if (item.includes('[建議]')) { tag = '建議'; cls = 'tag-tip'; item = item.replace('[建議]','').trim(); }
+      else if (item.includes('[優點]')) { tag = '優點'; cls = 'tag-good'; item = item.replace('[優點]','').trim(); }
+      return `<li>${tag ? `<span class="ai-tag ${cls}">${tag}</span>` : ''}<span>${item}</span></li>`;
+    }).join('')}</ul>`;
+
+  } catch (e) {
+    box.innerHTML = `<div style="color:#908070;font-size:0.82rem">AI 建議暫時無法載入（${e.message}）<br>以上數據分析仍可參考使用。</div>`;
+  }
+}
+
+// ── 主預測流程 ────────────────────────────────
+async function predict() {
+  const zones = getZones();
+  if (!zones.length) { alert('請至少輸入一個票區與票價'); return; }
+
+  const input = {
+    category: document.getElementById('f-category').value,
+    tier:     document.getElementById('f-tier').value,
+    city:     document.getElementById('f-city').value,
+    date:     document.getElementById('f-date').value,
+    time:     document.getElementById('f-time').value,
+    events:   document.getElementById('f-events').value,
+    advance:  document.getElementById('f-advance').value,
+    student:  document.getElementById('f-student').checked,
+    group:    document.getElementById('f-group').checked,
+    touring:  document.getElementById('f-touring').checked,
+    zones,
+  };
+
+  const btn = document.getElementById('btn-predict');
+  btn.disabled = true; btn.textContent = '分析中...';
+
+  const pred = computePrediction(input);
+  if (!pred) { btn.disabled = false; btn.textContent = '▶ 預測售出率並取得建議'; return; }
+
+  document.getElementById('results').innerHTML = `
+    <div class="fade-in">
+      <div class="section">
+        ${drawGauge(pred.rate)}
+        <div class="note" style="margin-top:1rem">
+          ⚠️ 此預測基於 OPENTIX 1,209 場次的當前售票狀態（非演出後結果），<br>
+          作為市場參考用途，不代表你的演出最終結果。市場基準售出率：戲劇大型 24%、中型 24%、小型 15%。
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">影響因素分析</div>
+        <div class="factors">${drawFactors(pred.factors)}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">票區現況 vs 市場基準</div>
+        ${[...input.zones].sort((a,b)=>b.price-a.price).map((z,i) => {
+          const pct = pred.market ? Math.round(z.price / pred.market * 100) : null;
+          return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0;border-bottom:1px solid var(--border)">
+            <div style="font-family:'DM Mono';font-size:10px;color:var(--mid);width:20px">${String.fromCharCode(65+i)}</div>
+            <div style="flex:1;font-size:0.88rem">${z.name}</div>
+            <div style="font-family:'Syne';font-size:0.95rem;font-weight:700">${z.price.toLocaleString()} 元</div>
+            ${pct ? `<div style="font-family:'DM Mono';font-size:10px;color:${pct>120?'var(--accent)':pct<80?'var(--blue)':'var(--green)'}">${pct>100?'+':''}${pct-100}%</div>` : ''}
+          </div>`;
+        }).join('')}
+        ${pred.market ? `<div style="font-size:0.75rem;color:var(--mid);margin-top:0.5rem">市場基準均價：${pred.market.toLocaleString()} 元（OPENTIX 2024 年度報告）</div>` : ''}
+      </div>
+
+      <div class="section">
+        <div class="section-title">AI 票務建議</div>
+        <div class="ai-box">
+          <h4>根據你的條件，Claude 分析如下：</h4>
+          <div id="ai-content"><div class="ai-streaming">連線中<span class="loading-dots"></span></div></div>
+        </div>
+      </div>
+    </div>`;
+
+  btn.disabled = false; btn.textContent = '▶ 重新預測';
+
+  await getAISuggestion(input, pred);
+}
+
+// 設定今天日期為預設
+document.getElementById('f-date').value = new Date(Date.now() + 60*24*3600*1000).toISOString().split('T')[0];
+</script>
+</body>
+</html>
